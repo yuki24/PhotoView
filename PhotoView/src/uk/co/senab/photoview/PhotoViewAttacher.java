@@ -52,7 +52,14 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener, Vers
 	private float mMidScale = DEFAULT_MID_SCALE;
 	private float mMaxScale = DEFAULT_MAX_SCALE;
 
+	private float mEdgeOffsetTop = 0;
+	private float mEdgeOffsetRight = 0;
+	private float mEdgeOffsetBottom = 0;
+	private float mEdgeOffsetLeft = 0;
+
     private boolean mAllowParentInterceptOnEdge = true;
+
+    private boolean mEdgeOffsetEnabled = false;
 
 	private static void checkZoomLevels(float minZoom, float midZoom, float maxZoom) {
 		if (minZoom >= midZoom) {
@@ -341,7 +348,7 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener, Vers
 			Log.d(LOG_TAG, String.format("onScale: scale: %.2f. fX: %.2f. fY: %.2f", scaleFactor, focusX, focusY));
 		}
 
-		if (hasDrawable(getImageView()) && (getScale() < mMaxScale || scaleFactor < 1f)) {
+		if (hasDrawable(getImageView()) && mMinScale <= (getScale() * scaleFactor) && (getScale() < mMaxScale || scaleFactor < 1f)) {
 			mSuppMatrix.postScale(scaleFactor, scaleFactor, focusX, focusY);
 			checkAndDisplayMatrix();
 		}
@@ -479,6 +486,15 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener, Vers
 		update();
 	}
 
+	public final void setEdgeOffset(int top, int right, int bottom, int left) {
+		mEdgeOffsetTop = top;
+		mEdgeOffsetRight = right;
+		mEdgeOffsetBottom = bottom;
+		mEdgeOffsetLeft = left;
+
+		mEdgeOffsetEnabled = (mEdgeOffsetTop != 0 || mEdgeOffsetRight != 0 || mEdgeOffsetBottom != 0 || mEdgeOffsetLeft != 0);
+	}
+
 	public final void update() {
 		ImageView imageView = getImageView();
 
@@ -556,7 +572,7 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener, Vers
 		float deltaX = 0, deltaY = 0;
 
 		final int viewHeight = imageView.getHeight();
-		if (height <= viewHeight) {
+		if (height <= viewHeight && !mEdgeOffsetEnabled) {
 			switch (mScaleType) {
 				case FIT_START:
 					deltaY = -rect.top;
@@ -568,14 +584,14 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener, Vers
 					deltaY = (viewHeight - height) / 2 - rect.top;
 					break;
 			}
-		} else if (rect.top > 0) {
-			deltaY = -rect.top;
-		} else if (rect.bottom < viewHeight) {
-			deltaY = viewHeight - rect.bottom;
+		} else if (rect.top - mEdgeOffsetTop > 0) {
+			deltaY = mEdgeOffsetTop - rect.top;
+		} else if (rect.bottom - mEdgeOffsetBottom < viewHeight) {
+			deltaY = viewHeight - (rect.bottom - mEdgeOffsetBottom);
 		}
 
 		final int viewWidth = imageView.getWidth();
-		if (width <= viewWidth) {
+		if (width <= viewWidth && !mEdgeOffsetEnabled) {
 			switch (mScaleType) {
 				case FIT_START:
 					deltaX = -rect.left;
@@ -588,11 +604,11 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener, Vers
 					break;
 			}
 			mScrollEdge = EDGE_BOTH;
-		} else if (rect.left > 0) {
+		} else if (rect.left - mEdgeOffsetLeft > 0) {
 			mScrollEdge = EDGE_LEFT;
-			deltaX = -rect.left;
-		} else if (rect.right < viewWidth) {
-			deltaX = viewWidth - rect.right;
+			deltaX = - (rect.left - mEdgeOffsetLeft);
+		} else if (rect.right - mEdgeOffsetRight < viewWidth) {
+			deltaX = viewWidth - (rect.right - mEdgeOffsetRight);
 			mScrollEdge = EDGE_RIGHT;
 		} else {
 			mScrollEdge = EDGE_NONE;
@@ -859,16 +875,16 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener, Vers
 			final int minX, maxX, minY, maxY;
 
 			if (viewWidth < rect.width()) {
-				minX = 0;
-				maxX = Math.round(rect.width() - viewWidth);
+				minX = (int) - mEdgeOffsetLeft;
+				maxX = Math.round(rect.width() - viewWidth) - (int) mEdgeOffsetRight;
 			} else {
 				minX = maxX = startX;
 			}
 
 			final int startY = Math.round(-rect.top);
 			if (viewHeight < rect.height()) {
-				minY = 0;
-				maxY = Math.round(rect.height() - viewHeight);
+				minY = - (int) mEdgeOffsetTop;
+				maxY = Math.round(rect.height() - viewHeight) - (int) mEdgeOffsetBottom;
 			} else {
 				minY = maxY = startY;
 			}
